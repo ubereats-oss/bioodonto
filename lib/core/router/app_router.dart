@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../features/admin/screens/admin_home_screen.dart';
 import '../../features/auth/providers/auth_provider.dart';
 import '../../features/auth/screens/forgot_password_screen.dart';
 import '../../features/auth/screens/login_screen.dart';
@@ -13,15 +14,6 @@ import '../../features/clinic_selector/screens/clinic_selector_screen.dart';
 import '../../features/patient/screens/patient_home_screen.dart';
 import '../../shared/models/user_model.dart';
 import '../constants/app_constants.dart';
-
-// ── Placeholder admin (implementar depois) ────────────────────────────────────
-
-class AdminHomeScreen extends StatelessWidget {
-  const AdminHomeScreen({super.key});
-  @override
-  Widget build(BuildContext context) => const Scaffold(
-      body: Center(child: Text('Admin App — em construção')));
-}
 
 // ─── Router ───────────────────────────────────────────────────────────────────
 
