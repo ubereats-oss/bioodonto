@@ -4,14 +4,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../features/admin/screens/admin_home_screen.dart';
 import '../../features/auth/providers/auth_provider.dart';
 import '../../features/auth/screens/forgot_password_screen.dart';
 import '../../features/auth/screens/login_screen.dart';
 import '../../features/auth/screens/register_screen.dart';
-import '../../features/clinic/screens/clinic_home_screen.dart';
 import '../../features/clinic_selector/screens/clinic_selector_screen.dart';
-import '../../features/patient/screens/patient_home_screen.dart';
+import '../../features/home/screens/home_screen.dart';
 import '../../shared/models/user_model.dart';
 import '../constants/app_constants.dart';
 
@@ -45,14 +43,6 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         return _homeFor(user.role);
       }
 
-      // Proteção de rotas por perfil
-      if (loc.startsWith('/clinic') && !user.role.isClinicStaff) {
-        return _homeFor(user.role);
-      }
-      if (loc.startsWith('/admin') && user.role != UserRole.adminApp) {
-        return _homeFor(user.role);
-      }
-
       return null;
     },
     routes: [
@@ -61,9 +51,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/login', builder: (_, __) => const LoginScreen()),
       GoRoute(path: '/register', builder: (_, __) => const RegisterScreen()),
       GoRoute(path: '/forgot-password', builder: (_, __) => const ForgotPasswordScreen()),
-      GoRoute(path: '/home', builder: (_, __) => const PatientHomeScreen()),
-      GoRoute(path: '/clinic', builder: (_, __) => const ClinicHomeScreen()),
-      GoRoute(path: '/admin', builder: (_, __) => const AdminHomeScreen()),
+      GoRoute(path: '/home', builder: (_, __) => const HomeScreen()),
     ],
     errorBuilder: (context, state) => Scaffold(
       body: Center(child: Text('Erro: ${state.error}')),
@@ -71,15 +59,4 @@ final appRouterProvider = Provider<GoRouter>((ref) {
   );
 });
 
-String _homeFor(UserRole role) {
-  switch (role) {
-    case UserRole.pacienteComum:
-    case UserRole.pacientePremium:
-      return '/home';
-    case UserRole.administrativo:
-    case UserRole.direcao:
-      return '/clinic';
-    case UserRole.adminApp:
-      return '/admin';
-  }
-}
+String _homeFor(UserRole role) => '/home';

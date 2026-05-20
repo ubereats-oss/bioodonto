@@ -1,0 +1,823 @@
+// lib/features/home/screens/home_screen.dart
+
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import 'package:intl/intl.dart';
+
+import '../../../core/theme/app_theme.dart';
+import '../../../features/auth/providers/auth_provider.dart';
+import '../../../features/clinic/providers/appointments_provider.dart';
+import '../../../features/patient/screens/patient_profile_screen.dart';
+import '../../../features/patient/widgets/patient_widgets.dart';
+import '../../../shared/models/appointment_model.dart';
+import '../../../shared/models/payment_model.dart';
+import '../../../shared/models/user_model.dart';
+
+// ─── Mock data (visão pessoal do paciente) ────────────────────────────────────
+
+AppointmentModel _mockAppt(
+  String id,
+  String procedures,
+  String fromTime,
+  String toTime,
+  DateTime date,
+  String statusColor,
+) {
+  return AppointmentModel(
+    id: id,
+    patientName: 'Paciente',
+    procedures: procedures,
+    fromTime: fromTime,
+    toTime: toTime,
+    date: DateTime(date.year, date.month, date.day),
+    atomicDate: date.year * 10000 + date.month * 100 + date.day,
+    statusColor: statusColor,
+    clinicBusinessId: '5184665339297792',
+  );
+}
+
+final _mockAppointments = [
+  _mockAppt('1', 'Limpeza e Clareamento', '10:00', '11:00',
+      DateTime.now().add(const Duration(days: 3)), '#66bb6a'),
+  _mockAppt('2', 'Consulta Ortodôntica', '14:00', '15:00',
+      DateTime.now().add(const Duration(days: 15)), '#ffa726'),
+  _mockAppt('3', 'Extração', '09:00', '10:00',
+      DateTime.now().subtract(const Duration(days: 30)), '#9e9e9e'),
+];
+
+final _mockPayments = [
+  PaymentModel(
+    id: '1',
+    patientId: 'mock',
+    description: 'Implante Dentário',
+    value: 2500.00,
+    dueDate: DateTime.now().add(const Duration(days: 10)),
+    status: PaymentStatus.pendente,
+  ),
+  PaymentModel(
+    id: '2',
+    patientId: 'mock',
+    description: 'Limpeza e Clareamento',
+    value: 350.00,
+    dueDate: DateTime.now().subtract(const Duration(days: 20)),
+    paidAt: DateTime.now().subtract(const Duration(days: 22)),
+    status: PaymentStatus.pago,
+  ),
+  PaymentModel(
+    id: '3',
+    patientId: 'mock',
+    description: 'Consulta Ortodôntica',
+    value: 180.00,
+    dueDate: DateTime.now().subtract(const Duration(days: 5)),
+    status: PaymentStatus.vencido,
+  ),
+];
+
+// ─── Shell principal ──────────────────────────────────────────────────────────
+
+class HomeScreen extends ConsumerStatefulWidget {
+  const HomeScreen({super.key});
+
+  @override
+  ConsumerState<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends ConsumerState<HomeScreen> {
+  int _selectedIndex = 0;
+
+  @override
+  Widget build(BuildContext context) {
+    final role =
+        ref.watch(currentUserProvider).value?.role ?? UserRole.pacienteComum;
+    final tabs = _buildTabs(role);
+    final count = tabs.length;
+    final index = _selectedIndex.clamp(0, count - 1);
+
+    return Scaffold(
+      backgroundColor: AppColors.background,
+      body: IndexedStack(
+        index: index,
+        children: tabs.map((t) => t.screen).toList(),
+      ),
+      bottomNavigationBar: NavigationBar(
+        backgroundColor: AppColors.surface,
+        indicatorColor: AppColors.primary.withValues(alpha: 0.15),
+        selectedIndex: index,
+        onDestinationSelected: (i) => setState(() => _selectedIndex = i),
+        destinations: tabs.map((t) => t.destination).toList(),
+      ),
+    );
+  }
+
+  List<_Tab> _buildTabs(UserRole role) {
+    final inicio = _Tab(
+      screen: const _InícioTab(),
+      destination: const NavigationDestination(
+        icon: Icon(Icons.home_outlined),
+        selectedIcon: Icon(Icons.home, color: AppColors.primary),
+        label: 'Início',
+      ),
+    );
+    final painel = _Tab(
+      screen: const _PainelTab(),
+      destination: const NavigationDestination(
+        icon: Icon(Icons.dashboard_outlined),
+        selectedIcon: Icon(Icons.dashboard, color: AppColors.primary),
+        label: 'Painel',
+      ),
+    );
+    final agenda = _Tab(
+      screen: const _PlaceholderTab(
+          icon: Icons.calendar_month_outlined, label: 'Agenda'),
+      destination: const NavigationDestination(
+        icon: Icon(Icons.calendar_month_outlined),
+        selectedIcon: Icon(Icons.calendar_month, color: AppColors.primary),
+        label: 'Agenda',
+      ),
+    );
+    final financeiro = _Tab(
+      screen: const _PlaceholderTab(
+          icon: Icons.payments_outlined, label: 'Financeiro'),
+      destination: const NavigationDestination(
+        icon: Icon(Icons.payments_outlined),
+        selectedIcon: Icon(Icons.payments, color: AppColors.primary),
+        label: 'Financeiro',
+      ),
+    );
+    final admin = _Tab(
+      screen: _AdminTab(
+        onNavigateToPainel: () => setState(() => _selectedIndex = 1),
+      ),
+      destination: const NavigationDestination(
+        icon: Icon(Icons.admin_panel_settings_outlined),
+        selectedIcon:
+            Icon(Icons.admin_panel_settings, color: AppColors.primary),
+        label: 'Admin',
+      ),
+    );
+    final perfil = _Tab(
+      screen: const PatientProfileScreen(),
+      destination: const NavigationDestination(
+        icon: Icon(Icons.person_outline),
+        selectedIcon: Icon(Icons.person, color: AppColors.primary),
+        label: 'Perfil',
+      ),
+    );
+
+    switch (role) {
+      case UserRole.pacienteComum:
+      case UserRole.pacientePremium:
+        return [inicio, agenda, financeiro, perfil];
+      case UserRole.administrativo:
+        return [inicio, painel, perfil];
+      case UserRole.direcao:
+        return [inicio, painel, financeiro, perfil];
+      case UserRole.adminApp:
+        return [inicio, painel, admin, perfil];
+    }
+  }
+}
+
+class _Tab {
+  final Widget screen;
+  final NavigationDestination destination;
+  const _Tab({required this.screen, required this.destination});
+}
+
+// ─── Aba: Início (visão pessoal — igual para todos) ───────────────────────────
+
+class _InícioTab extends ConsumerWidget {
+  const _InícioTab();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final user = ref.watch(currentUserProvider).value;
+    final firstName = user?.displayName?.split(' ').first ?? 'Olá';
+
+    final upcoming = _mockAppointments
+        .where((a) =>
+            a.dateTimeFrom.isAfter(DateTime.now()) &&
+            a.status != AppointmentStatus.cancelado)
+        .toList()
+      ..sort((a, b) => a.dateTimeFrom.compareTo(b.dateTimeFrom));
+
+    final past = _mockAppointments
+        .where((a) => a.dateTimeFrom.isBefore(DateTime.now()))
+        .toList()
+      ..sort((a, b) => b.dateTimeFrom.compareTo(a.dateTimeFrom));
+
+    return SafeArea(
+      child: CustomScrollView(
+        slivers: [
+          SliverAppBar(
+            backgroundColor: AppColors.background,
+            floating: true,
+            snap: true,
+            elevation: 0,
+            automaticallyImplyLeading: false,
+            title: Row(
+              children: [
+                Image.asset('assets/images/logo.png', height: 32),
+                const Spacer(),
+                IconButton(
+                  icon: const Icon(Icons.notifications_outlined,
+                      color: AppColors.textSecondary),
+                  onPressed: () {},
+                ),
+                IconButton(
+                  icon: const Icon(Icons.chat_bubble_outline,
+                      color: AppColors.textSecondary),
+                  onPressed: () {},
+                ),
+              ],
+            ),
+          ),
+          SliverPadding(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            sliver: SliverList(
+              delegate: SliverChildListDelegate([
+                const SizedBox(height: 8),
+                Text(
+                  'Olá, $firstName',
+                  style: const TextStyle(
+                    color: AppColors.textPrimary,
+                    fontSize: 22,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                const Text(
+                  'Veja seus agendamentos e histórico',
+                  style:
+                      TextStyle(color: AppColors.textSecondary, fontSize: 14),
+                ),
+                const SizedBox(height: 24),
+
+                if (upcoming.isNotEmpty) ...[
+                  NextAppointmentCard(appointment: upcoming.first),
+                  const SizedBox(height: 24),
+                ],
+
+                if (upcoming.length > 1) ...[
+                  SectionHeader(
+                    title: 'Próximos agendamentos',
+                    actionLabel: 'Ver todos',
+                    onAction: () {},
+                  ),
+                  const SizedBox(height: 12),
+                  ...upcoming.skip(1).map((a) => Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: AppointmentListItem(appointment: a),
+                      )),
+                  const SizedBox(height: 24),
+                ],
+
+                SectionHeader(
+                  title: 'Financeiro',
+                  actionLabel: 'Ver todos',
+                  onAction: () {},
+                ),
+                const SizedBox(height: 12),
+                ..._mockPayments.take(3).map((p) => Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: PaymentListItem(payment: p),
+                    )),
+
+                const SizedBox(height: 24),
+
+                if (past.isNotEmpty) ...[
+                  SectionHeader(
+                    title: 'Histórico de consultas',
+                    actionLabel: 'Ver todos',
+                    onAction: () {},
+                  ),
+                  const SizedBox(height: 12),
+                  ...past.take(3).map((a) => Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: AppointmentListItem(appointment: a),
+                      )),
+                ],
+
+                const SizedBox(height: 32),
+              ]),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─── Aba: Painel (agenda da clínica — staff e admin) ─────────────────────────
+
+class _PainelTab extends ConsumerWidget {
+  const _PainelTab();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final appointmentsAsync = ref.watch(appointmentsProvider);
+    final today = DateTime.now();
+    final todayAtomic = today.year * 10000 + today.month * 100 + today.day;
+    final todayLabel =
+        DateFormat("EEEE, dd 'de' MMMM", 'pt_BR').format(today);
+
+    return SafeArea(
+      child: appointmentsAsync.when(
+        loading: () => const Center(
+          child: CircularProgressIndicator(color: AppColors.primary),
+        ),
+        error: (err, _) => _PainelErrorView(
+          message: err.toString(),
+          onRetry: () => ref.read(appointmentsProvider.notifier).refresh(),
+        ),
+        data: (appointments) {
+          final todayList = appointments
+              .where((a) => a.atomicDate == todayAtomic)
+              .toList()
+            ..sort((a, b) => a.fromTime.compareTo(b.fromTime));
+
+          return RefreshIndicator(
+            color: AppColors.primary,
+            onRefresh: () =>
+                ref.read(appointmentsProvider.notifier).refresh(),
+            child: CustomScrollView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              slivers: [
+                SliverAppBar(
+                  backgroundColor: AppColors.background,
+                  floating: true,
+                  snap: true,
+                  elevation: 0,
+                  automaticallyImplyLeading: false,
+                  title: Row(
+                    children: [
+                      Image.asset('assets/images/logo.png', height: 32),
+                    ],
+                  ),
+                  actions: [
+                    IconButton(
+                      icon: const Icon(Icons.refresh,
+                          color: AppColors.textSecondary),
+                      tooltip: 'Atualizar',
+                      onPressed: () =>
+                          ref.read(appointmentsProvider.notifier).refresh(),
+                    ),
+                    const SizedBox(width: 8),
+                  ],
+                ),
+                SliverPadding(
+                  padding: const EdgeInsets.all(20),
+                  sliver: SliverList(
+                    delegate: SliverChildListDelegate([
+                      Text(
+                        todayLabel,
+                        style: const TextStyle(
+                          color: AppColors.textPrimary,
+                          fontSize: 20,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        todayList.isEmpty
+                            ? 'Nenhum agendamento hoje'
+                            : '${todayList.length} agendamento${todayList.length != 1 ? 's' : ''}',
+                        style: const TextStyle(
+                          color: AppColors.textSecondary,
+                          fontSize: 14,
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+                      if (todayList.isEmpty)
+                        const _PainelEmptyView()
+                      else
+                        ...todayList.map(
+                          (a) => Padding(
+                            padding: const EdgeInsets.only(bottom: 12),
+                            child: _AppointmentCard(appointment: a),
+                          ),
+                        ),
+                      const SizedBox(height: 32),
+                    ]),
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _AppointmentCard extends StatelessWidget {
+  final AppointmentModel appointment;
+  const _AppointmentCard({required this.appointment});
+
+  @override
+  Widget build(BuildContext context) {
+    final statusColor = _parseHex(appointment.statusColor);
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 4,
+            height: 56,
+            decoration: BoxDecoration(
+              color: statusColor,
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  appointment.patientName,
+                  style: const TextStyle(
+                    color: AppColors.textPrimary,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  appointment.procedures,
+                  style: const TextStyle(
+                      color: AppColors.textSecondary, fontSize: 13),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 12),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text(
+                '${appointment.fromTime} — ${appointment.toTime}',
+                style: const TextStyle(
+                  color: AppColors.textPrimary,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Container(
+                width: 10,
+                height: 10,
+                decoration: BoxDecoration(
+                  color: statusColor,
+                  shape: BoxShape.circle,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Color _parseHex(String hex) {
+    try {
+      final clean = hex.replaceFirst('#', '');
+      return Color(int.parse('FF$clean', radix: 16));
+    } catch (_) {
+      return AppColors.warning;
+    }
+  }
+}
+
+class _PainelEmptyView extends StatelessWidget {
+  const _PainelEmptyView();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Padding(
+      padding: EdgeInsets.symmetric(vertical: 60),
+      child: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.calendar_today_outlined,
+                size: 48, color: AppColors.textHint),
+            SizedBox(height: 12),
+            Text(
+              'Nenhum agendamento para hoje',
+              style:
+                  TextStyle(color: AppColors.textSecondary, fontSize: 15),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _PainelErrorView extends StatelessWidget {
+  final String message;
+  final VoidCallback onRetry;
+  const _PainelErrorView({required this.message, required this.onRetry});
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.error_outline, color: AppColors.error, size: 48),
+            const SizedBox(height: 16),
+            const Text(
+              'Erro ao carregar agendamentos',
+              style: TextStyle(
+                color: AppColors.textPrimary,
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              message,
+              style: const TextStyle(
+                  color: AppColors.textSecondary, fontSize: 13),
+              textAlign: TextAlign.center,
+              maxLines: 3,
+              overflow: TextOverflow.ellipsis,
+            ),
+            const SizedBox(height: 24),
+            OutlinedButton.icon(
+              onPressed: onRetry,
+              icon: const Icon(Icons.refresh, size: 18),
+              label: const Text('Tentar novamente'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppColors.primary,
+                side: const BorderSide(color: AppColors.primary),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ─── Aba: Admin (opções de administração — adminApp) ─────────────────────────
+
+class _AdminTab extends ConsumerWidget {
+  final VoidCallback onNavigateToPainel;
+  const _AdminTab({required this.onNavigateToPainel});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final user = ref.watch(currentUserProvider).value;
+    final firstName = user?.displayName?.split(' ').first ?? 'Admin';
+
+    return SafeArea(
+      child: CustomScrollView(
+        slivers: [
+          SliverAppBar(
+            backgroundColor: AppColors.background,
+            floating: true,
+            snap: true,
+            elevation: 0,
+            automaticallyImplyLeading: false,
+            title: Row(
+              children: [
+                Image.asset('assets/images/logo.png', height: 32),
+              ],
+            ),
+          ),
+          SliverPadding(
+            padding: const EdgeInsets.fromLTRB(20, 8, 20, 32),
+            sliver: SliverList(
+              delegate: SliverChildListDelegate([
+                Text(
+                  'Olá, $firstName',
+                  style: const TextStyle(
+                    color: AppColors.textPrimary,
+                    fontSize: 22,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                const Text(
+                  'Painel de administração',
+                  style: TextStyle(
+                      color: AppColors.textSecondary, fontSize: 14),
+                ),
+                const SizedBox(height: 28),
+
+                _SectionLabel(label: 'Clínica'),
+                const SizedBox(height: 12),
+                _AdminOptionCard(
+                  icon: Icons.calendar_month_outlined,
+                  title: 'Agendamentos',
+                  subtitle: 'Ver agenda do dia e da semana',
+                  onTap: onNavigateToPainel,
+                ),
+                const SizedBox(height: 10),
+                _AdminOptionCard(
+                  icon: Icons.payments_outlined,
+                  title: 'Financeiro',
+                  subtitle: 'Resumo financeiro da clínica',
+                  onTap: () {},
+                  comingSoon: true,
+                ),
+                const SizedBox(height: 10),
+                _AdminOptionCard(
+                  icon: Icons.bar_chart_outlined,
+                  title: 'Relatórios',
+                  subtitle: 'Analíticos e desempenho',
+                  onTap: () {},
+                  comingSoon: true,
+                ),
+
+                const SizedBox(height: 24),
+
+                _SectionLabel(label: 'Gestão'),
+                const SizedBox(height: 12),
+                _AdminOptionCard(
+                  icon: Icons.people_outline,
+                  title: 'Usuários',
+                  subtitle: 'Gerenciar pacientes e equipe',
+                  onTap: () {},
+                  comingSoon: true,
+                ),
+                const SizedBox(height: 10),
+                _AdminOptionCard(
+                  icon: Icons.business_outlined,
+                  title: 'Clínicas',
+                  subtitle: 'Dados e configurações da clínica',
+                  onTap: () {},
+                  comingSoon: true,
+                ),
+                const SizedBox(height: 10),
+                _AdminOptionCard(
+                  icon: Icons.notifications_outlined,
+                  title: 'Notificações',
+                  subtitle: 'Enviar comunicados aos pacientes',
+                  onTap: () {},
+                  comingSoon: true,
+                ),
+              ]),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _AdminOptionCard extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+  final bool comingSoon;
+
+  const _AdminOptionCard({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+    this.comingSoon = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: comingSoon ? null : onTap,
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: AppColors.surface,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: AppColors.border),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                color: comingSoon
+                    ? AppColors.surfaceVariant
+                    : AppColors.primary.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(
+                icon,
+                size: 22,
+                color: comingSoon ? AppColors.textHint : AppColors.primary,
+              ),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: TextStyle(
+                      color: comingSoon
+                          ? AppColors.textSecondary
+                          : AppColors.textPrimary,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    subtitle,
+                    style: const TextStyle(
+                        color: AppColors.textSecondary, fontSize: 12),
+                  ),
+                ],
+              ),
+            ),
+            if (comingSoon)
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: AppColors.surfaceVariant,
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: const Text(
+                  'em breve',
+                  style: TextStyle(
+                    color: AppColors.textHint,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              )
+            else
+              const Icon(Icons.chevron_right,
+                  color: AppColors.textHint, size: 20),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SectionLabel extends StatelessWidget {
+  final String label;
+  const _SectionLabel({required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      label,
+      style: const TextStyle(
+        color: AppColors.textSecondary,
+        fontSize: 12,
+        fontWeight: FontWeight.w700,
+        letterSpacing: 0.8,
+      ),
+    );
+  }
+}
+
+// ─── Placeholder ──────────────────────────────────────────────────────────────
+
+class _PlaceholderTab extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  const _PlaceholderTab({required this.icon, required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      child: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 48, color: AppColors.textHint),
+            const SizedBox(height: 12),
+            Text(
+              '$label — em breve',
+              style: const TextStyle(
+                  color: AppColors.textSecondary, fontSize: 16),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
