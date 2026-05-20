@@ -9,70 +9,8 @@ import '../../../core/theme/app_theme.dart';
 import '../../../features/auth/providers/auth_provider.dart';
 import '../../../features/clinic/providers/appointments_provider.dart';
 import '../../../features/patient/screens/patient_profile_screen.dart';
-import '../../../features/patient/widgets/patient_widgets.dart';
 import '../../../shared/models/appointment_model.dart';
-import '../../../shared/models/payment_model.dart';
 import '../../../shared/models/user_model.dart';
-
-// ─── Mock data (visão pessoal do paciente) ────────────────────────────────────
-
-AppointmentModel _mockAppt(
-  String id,
-  String procedures,
-  String fromTime,
-  String toTime,
-  DateTime date,
-  String statusColor,
-) {
-  return AppointmentModel(
-    id: id,
-    patientName: 'Paciente',
-    procedures: procedures,
-    fromTime: fromTime,
-    toTime: toTime,
-    date: DateTime(date.year, date.month, date.day),
-    atomicDate: date.year * 10000 + date.month * 100 + date.day,
-    statusColor: statusColor,
-    clinicBusinessId: '5184665339297792',
-  );
-}
-
-final _mockAppointments = [
-  _mockAppt('1', 'Limpeza e Clareamento', '10:00', '11:00',
-      DateTime.now().add(const Duration(days: 3)), '#66bb6a'),
-  _mockAppt('2', 'Consulta Ortodôntica', '14:00', '15:00',
-      DateTime.now().add(const Duration(days: 15)), '#ffa726'),
-  _mockAppt('3', 'Extração', '09:00', '10:00',
-      DateTime.now().subtract(const Duration(days: 30)), '#9e9e9e'),
-];
-
-final _mockPayments = [
-  PaymentModel(
-    id: '1',
-    patientId: 'mock',
-    description: 'Implante Dentário',
-    value: 2500.00,
-    dueDate: DateTime.now().add(const Duration(days: 10)),
-    status: PaymentStatus.pendente,
-  ),
-  PaymentModel(
-    id: '2',
-    patientId: 'mock',
-    description: 'Limpeza e Clareamento',
-    value: 350.00,
-    dueDate: DateTime.now().subtract(const Duration(days: 20)),
-    paidAt: DateTime.now().subtract(const Duration(days: 22)),
-    status: PaymentStatus.pago,
-  ),
-  PaymentModel(
-    id: '3',
-    patientId: 'mock',
-    description: 'Consulta Ortodôntica',
-    value: 180.00,
-    dueDate: DateTime.now().subtract(const Duration(days: 5)),
-    status: PaymentStatus.vencido,
-  ),
-];
 
 // ─── Shell principal ──────────────────────────────────────────────────────────
 
@@ -195,18 +133,6 @@ class _InicioTab extends ConsumerWidget {
     final user = ref.watch(currentUserProvider).value;
     final firstName = user?.displayName?.split(' ').first ?? 'Olá';
 
-    final upcoming = _mockAppointments
-        .where((a) =>
-            a.dateTimeFrom.isAfter(DateTime.now()) &&
-            a.status != AppointmentStatus.cancelado)
-        .toList()
-      ..sort((a, b) => a.dateTimeFrom.compareTo(b.dateTimeFrom));
-
-    final past = _mockAppointments
-        .where((a) => a.dateTimeFrom.isBefore(DateTime.now()))
-        .toList()
-      ..sort((a, b) => b.dateTimeFrom.compareTo(a.dateTimeFrom));
-
     return SafeArea(
       child: CustomScrollView(
         slivers: [
@@ -225,19 +151,13 @@ class _InicioTab extends ConsumerWidget {
                       color: AppColors.textSecondary),
                   onPressed: () {},
                 ),
-                IconButton(
-                  icon: const Icon(Icons.chat_bubble_outline,
-                      color: AppColors.textSecondary),
-                  onPressed: () {},
-                ),
               ],
             ),
           ),
           SliverPadding(
-            padding: const EdgeInsets.symmetric(horizontal: 20),
+            padding: const EdgeInsets.fromLTRB(20, 8, 20, 32),
             sliver: SliverList(
               delegate: SliverChildListDelegate([
-                const SizedBox(height: 8),
                 Text(
                   'Olá, $firstName',
                   style: const TextStyle(
@@ -248,59 +168,90 @@ class _InicioTab extends ConsumerWidget {
                 ),
                 const SizedBox(height: 4),
                 const Text(
-                  'Veja seus agendamentos e histórico',
-                  style:
-                      TextStyle(color: AppColors.textSecondary, fontSize: 14),
+                  'Bem-vindo ao BioOdonto',
+                  style: TextStyle(color: AppColors.textSecondary, fontSize: 14),
                 ),
-                const SizedBox(height: 24),
+                const SizedBox(height: 28),
 
-                if (upcoming.isNotEmpty) ...[
-                  NextAppointmentCard(appointment: upcoming.first),
-                  const SizedBox(height: 24),
-                ],
-
-                if (upcoming.length > 1) ...[
-                  SectionHeader(
-                    title: 'Próximos agendamentos',
-                    actionLabel: 'Ver todos',
-                    onAction: () {},
-                  ),
-                  const SizedBox(height: 12),
-                  ...upcoming.skip(1).map((a) => Padding(
-                        padding: const EdgeInsets.only(bottom: 8),
-                        child: AppointmentListItem(appointment: a),
-                      )),
-                  const SizedBox(height: 24),
-                ],
-
-                SectionHeader(
+                _InicioSection(
+                  icon: Icons.calendar_month_outlined,
+                  title: 'Próximo agendamento',
+                  message: 'Seus agendamentos aparecerão aqui em breve.',
+                ),
+                const SizedBox(height: 16),
+                _InicioSection(
+                  icon: Icons.history,
+                  title: 'Histórico de consultas',
+                  message: 'Seu histórico aparecerá aqui em breve.',
+                ),
+                const SizedBox(height: 16),
+                _InicioSection(
+                  icon: Icons.payments_outlined,
                   title: 'Financeiro',
-                  actionLabel: 'Ver todos',
-                  onAction: () {},
+                  message: 'Seu resumo financeiro aparecerá aqui em breve.',
                 ),
-                const SizedBox(height: 12),
-                ..._mockPayments.take(3).map((p) => Padding(
-                      padding: const EdgeInsets.only(bottom: 8),
-                      child: PaymentListItem(payment: p),
-                    )),
-
-                const SizedBox(height: 24),
-
-                if (past.isNotEmpty) ...[
-                  SectionHeader(
-                    title: 'Histórico de consultas',
-                    actionLabel: 'Ver todos',
-                    onAction: () {},
-                  ),
-                  const SizedBox(height: 12),
-                  ...past.take(3).map((a) => Padding(
-                        padding: const EdgeInsets.only(bottom: 8),
-                        child: AppointmentListItem(appointment: a),
-                      )),
-                ],
-
-                const SizedBox(height: 32),
               ]),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _InicioSection extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String message;
+
+  const _InicioSection({
+    required this.icon,
+    required this.title,
+    required this.message,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              color: AppColors.surfaceVariant,
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(icon, size: 22, color: AppColors.textHint),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(
+                    color: AppColors.textPrimary,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  message,
+                  style: const TextStyle(
+                    color: AppColors.textSecondary,
+                    fontSize: 12,
+                  ),
+                ),
+              ],
             ),
           ),
         ],
