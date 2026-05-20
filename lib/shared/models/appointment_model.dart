@@ -36,6 +36,7 @@ class AppointmentModel {
   final String? categoryColor;
   final bool deleted;
   final String? dentistPersonId;
+  final String? dentistName;
   final String clinicBusinessId;
 
   const AppointmentModel({
@@ -54,6 +55,7 @@ class AppointmentModel {
     this.categoryColor,
     this.deleted = false,
     this.dentistPersonId,
+    this.dentistName,
     required this.clinicBusinessId,
   });
 
@@ -117,6 +119,10 @@ class AppointmentModel {
       categoryColor: json['CategoryColor'] as String?,
       deleted: (json['Deleted'] as String? ?? '') == 'X',
       dentistPersonId: json['Dentist_PersonId']?.toString(),
+      dentistName: json['DentistName'] as String? ??
+          json['Dentist_Name'] as String? ??
+          json['ProfessionalName'] as String? ??
+          json['Professional_Name'] as String?,
       clinicBusinessId: (json['Clinic_BusinessId'] ?? '').toString(),
     );
   }

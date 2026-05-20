@@ -311,103 +311,253 @@ class _InicioTab extends ConsumerWidget {
 
 // ─── Aba: Painel (agenda da clínica — staff e admin) ─────────────────────────
 
-class _PainelTab extends ConsumerWidget {
+class _PainelTab extends ConsumerStatefulWidget {
   const _PainelTab();
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_PainelTab> createState() => _PainelTabState();
+}
+
+class _PainelTabState extends ConsumerState<_PainelTab> {
+  late DateTime _weekStart;
+  late DateTime _selectedDate;
+
+  @override
+  void initState() {
+    super.initState();
+    final now = DateTime.now();
+    _weekStart = now.subtract(Duration(days: now.weekday - 1));
+    _selectedDate = DateTime(now.year, now.month, now.day);
+  }
+
+  void _goToPrevWeek() {
+    final newStart = _weekStart.subtract(const Duration(days: 7));
+    setState(() {
+      _weekStart = newStart;
+      _selectedDate = newStart;
+    });
+    ref.read(appointmentsProvider.notifier).setRange(
+          newStart,
+          newStart.add(const Duration(days: 6)),
+        );
+  }
+
+  void _goToNextWeek() {
+    final newStart = _weekStart.add(const Duration(days: 7));
+    setState(() {
+      _weekStart = newStart;
+      _selectedDate = newStart;
+    });
+    ref.read(appointmentsProvider.notifier).setRange(
+          newStart,
+          newStart.add(const Duration(days: 6)),
+        );
+  }
+
+  int _toAtomic(DateTime d) => d.year * 10000 + d.month * 100 + d.day;
+
+  @override
+  Widget build(BuildContext context) {
     final appointmentsAsync = ref.watch(appointmentsProvider);
-    final today = DateTime.now();
-    final todayAtomic = today.year * 10000 + today.month * 100 + today.day;
-    final todayLabel =
-        DateFormat("EEEE, dd 'de' MMMM", 'pt_BR').format(today);
+    final selectedAtomic = _toAtomic(_selectedDate);
+    final weekDays = List.generate(7, (i) => _weekStart.add(Duration(days: i)));
 
     return SafeArea(
-      child: appointmentsAsync.when(
-        loading: () => const Center(
-          child: CircularProgressIndicator(color: AppColors.primary),
-        ),
-        error: (err, _) => _PainelErrorView(
-          message: err.toString(),
-          onRetry: () => ref.read(appointmentsProvider.notifier).refresh(),
-        ),
-        data: (appointments) {
-          final todayList = appointments
-              .where((a) => a.atomicDate == todayAtomic)
-              .toList()
-            ..sort((a, b) => a.fromTime.compareTo(b.fromTime));
-
-          return RefreshIndicator(
-            color: AppColors.primary,
-            onRefresh: () =>
-                ref.read(appointmentsProvider.notifier).refresh(),
-            child: CustomScrollView(
-              physics: const AlwaysScrollableScrollPhysics(),
-              slivers: [
-                SliverAppBar(
-                  backgroundColor: AppColors.background,
-                  floating: true,
-                  snap: true,
-                  elevation: 0,
-                  automaticallyImplyLeading: false,
-                  title: Row(
-                    children: [
-                      Image.asset('assets/images/logo.png', height: 32),
-                    ],
-                  ),
-                  actions: [
-                    IconButton(
-                      icon: const Icon(Icons.refresh,
-                          color: AppColors.textSecondary),
-                      tooltip: 'Atualizar',
-                      onPressed: () =>
-                          ref.read(appointmentsProvider.notifier).refresh(),
-                    ),
-                    const SizedBox(width: 8),
-                  ],
+      child: Column(
+        children: [
+          // ── App bar ────────────────────────────────────────────────────────
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 8, 0),
+            child: Row(
+              children: [
+                Image.asset('assets/images/logo.png', height: 28),
+                const Spacer(),
+                IconButton(
+                  icon: const Icon(Icons.refresh, color: AppColors.textSecondary),
+                  tooltip: 'Atualizar',
+                  onPressed: () =>
+                      ref.read(appointmentsProvider.notifier).refresh(),
                 ),
-                SliverPadding(
-                  padding: const EdgeInsets.all(20),
-                  sliver: SliverList(
-                    delegate: SliverChildListDelegate([
+              ],
+            ),
+          ),
+
+          // ── Navegação de semana ────────────────────────────────────────────
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+            child: Row(
+              children: [
+                IconButton(
+                  onPressed: _goToPrevWeek,
+                  icon: const Icon(Icons.chevron_left,
+                      color: AppColors.textSecondary),
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(),
+                ),
+                Expanded(
+                  child: Text(
+                    _weekLabel(),
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      color: AppColors.textPrimary,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+                IconButton(
+                  onPressed: _goToNextWeek,
+                  icon: const Icon(Icons.chevron_right,
+                      color: AppColors.textSecondary),
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(),
+                ),
+              ],
+            ),
+          ),
+
+          // ── Chips dos dias ─────────────────────────────────────────────────
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 10),
+            child: SizedBox(
+              height: 60,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                itemCount: 7,
+                separatorBuilder: (_, __) => const SizedBox(width: 8),
+                itemBuilder: (_, i) {
+                  final day = weekDays[i];
+                  final isSelected = _toAtomic(day) == _toAtomic(_selectedDate);
+                  final isToday = _toAtomic(day) ==
+                      _toAtomic(DateTime.now());
+                  return GestureDetector(
+                    onTap: () => setState(() => _selectedDate = day),
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 180),
+                      width: 44,
+                      decoration: BoxDecoration(
+                        color: isSelected
+                            ? AppColors.primary
+                            : AppColors.surface,
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                          color: isToday && !isSelected
+                              ? AppColors.primary
+                              : AppColors.border,
+                        ),
+                      ),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(
+                            DateFormat('E', 'pt_BR')
+                                .format(day)
+                                .substring(0, 3)
+                                .toUpperCase(),
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w600,
+                              color: isSelected
+                                  ? Colors.black
+                                  : AppColors.textSecondary,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            '${day.day}',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w700,
+                              color: isSelected
+                                  ? Colors.black
+                                  : AppColors.textPrimary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ),
+
+          const Divider(height: 1, color: AppColors.border),
+
+          // ── Lista de agendamentos ──────────────────────────────────────────
+          Expanded(
+            child: appointmentsAsync.when(
+              loading: () => const Center(
+                child: CircularProgressIndicator(color: AppColors.primary),
+              ),
+              error: (err, _) => _PainelErrorView(
+                message: err.toString(),
+                onRetry: () =>
+                    ref.read(appointmentsProvider.notifier).refresh(),
+              ),
+              data: (appointments) {
+                final dayList = appointments
+                    .where((a) => a.atomicDate == selectedAtomic)
+                    .toList()
+                  ..sort((a, b) => a.fromTime.compareTo(b.fromTime));
+
+                final dayLabel = DateFormat(
+                  "EEEE, dd 'de' MMMM",
+                  'pt_BR',
+                ).format(_selectedDate);
+
+                return RefreshIndicator(
+                  color: AppColors.primary,
+                  onRefresh: () =>
+                      ref.read(appointmentsProvider.notifier).refresh(),
+                  child: ListView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    padding: const EdgeInsets.all(20),
+                    children: [
                       Text(
-                        todayLabel,
+                        dayLabel,
                         style: const TextStyle(
                           color: AppColors.textPrimary,
-                          fontSize: 20,
+                          fontSize: 18,
                           fontWeight: FontWeight.w700,
                         ),
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        todayList.isEmpty
-                            ? 'Nenhum agendamento hoje'
-                            : '${todayList.length} agendamento${todayList.length != 1 ? 's' : ''}',
+                        dayList.isEmpty
+                            ? 'Nenhum agendamento'
+                            : '${dayList.length} agendamento${dayList.length != 1 ? 's' : ''}',
                         style: const TextStyle(
                           color: AppColors.textSecondary,
-                          fontSize: 14,
+                          fontSize: 13,
                         ),
                       ),
-                      const SizedBox(height: 20),
-                      if (todayList.isEmpty)
+                      const SizedBox(height: 16),
+                      if (dayList.isEmpty)
                         const _PainelEmptyView()
                       else
-                        ...todayList.map(
+                        ...dayList.map(
                           (a) => Padding(
                             padding: const EdgeInsets.only(bottom: 12),
                             child: _AppointmentCard(appointment: a),
                           ),
                         ),
-                      const SizedBox(height: 32),
-                    ]),
+                    ],
                   ),
-                ),
-              ],
+                );
+              },
             ),
-          );
-        },
+          ),
+        ],
       ),
     );
+  }
+
+  String _weekLabel() {
+    final weekEnd = _weekStart.add(const Duration(days: 6));
+    final fmt = DateFormat('d MMM', 'pt_BR');
+    return '${fmt.format(_weekStart)} – ${fmt.format(weekEnd)}';
   }
 }
 
@@ -451,7 +601,7 @@ class _AppointmentCard extends StatelessWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
-                const SizedBox(height: 3),
+                const SizedBox(height: 2),
                 Text(
                   appointment.procedures,
                   style: const TextStyle(
@@ -459,6 +609,18 @@ class _AppointmentCard extends StatelessWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
+                if (appointment.dentistName != null) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    appointment.dentistName!,
+                    style: const TextStyle(
+                      color: AppColors.textHint,
+                      fontSize: 11,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
               ],
             ),
           ),
