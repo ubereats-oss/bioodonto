@@ -112,7 +112,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
   List<_Tab> _buildTabs(UserRole role) {
     final inicio = _Tab(
-      screen: const _InícioTab(),
+      screen: const _InicioTab(),
       destination: const NavigationDestination(
         icon: Icon(Icons.home_outlined),
         selectedIcon: Icon(Icons.home, color: AppColors.primary),
@@ -187,8 +187,8 @@ class _Tab {
 
 // ─── Aba: Início (visão pessoal — igual para todos) ───────────────────────────
 
-class _InícioTab extends ConsumerWidget {
-  const _InícioTab();
+class _InicioTab extends ConsumerWidget {
+  const _InicioTab();
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
